@@ -26,12 +26,12 @@ message Book {
 
 // Request messages
 message CreateBookRequest {
-    int64 id = 1;
-    string title = 2;
-    string author = 3;
-    string isbn = 4;
-    int32 publishedYear = 5;
-    string summary = 6;
+
+    string title = 1;
+    string author = 2;
+    string isbn = 3;
+    int32 publishedYear = 4;
+    string summary = 5;
 }
 
 message GetBookRequest {

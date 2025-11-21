@@ -1,100 +1,164 @@
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
-import { AppDataSource } from "./data-source";
-import { Book } from "./entity/Book";
+import path from "path";
+import { connectDB, sequelize } from "./db";
+import { Book } from "./models/Book";
+import { LibraryServiceDefinition } from "./server";
 
-const PROTO_PATH = __dirname + "/../../proto/library.proto";
+
+// Correct path to proto and include google-proto-files for Empty type
+const PROTO_PATH = path.join(__dirname, "proto", "library.proto");
 
 const packageDef = protoLoader.loadSync(PROTO_PATH, {
-    keepCase: false,
-    longs: String,
+    keepCase: true, 
+    longs: String, 
     enums: String,
     defaults: true,
     oneofs: true,
+    includeDirs: [
+        path.join(__dirname, "proto"),
+        path.join(process.cwd(), "node_modules/google-proto-files"),
+    ],
 });
 
 const grpcObj = grpc.loadPackageDefinition(packageDef) as any;
 const libraryPackage = grpcObj.library;
 
-async function main() {
-    await AppDataSource.initialize();
-    const bookRepo = AppDataSource.getRepository(Book);
-    const server = new grpc.Server();
-    const handler = {
-        async CreateBook(
-            call: any,
-            callback: grpc.sendUnaryData<any>
-
-        ) {
+// gRPC HANDLERS
+const handler = {
+    async createBook(call: any, callback: grpc.sendUnaryData<any>) {
+        try {
             const payload = call.request;
-            const b = bookRepo.create({
+            const saved = await Book.create({
                 title: payload.title,
                 author: payload.author,
                 isbn: payload.isbn,
                 publishedYear: payload.publishedYear,
                 summary: payload.summary,
             });
-            const saved = await bookRepo.save(b);
+
             callback(null, {
-                id: saved.id,
+                id: saved.id.toString(), 
                 title: saved.title,
                 author: saved.author,
                 isbn: saved.isbn,
                 publishedYear: saved.publishedYear,
                 summary: saved.summary,
             });
+        } catch (err) {
+            console.error("CREATE ERROR:", err);
+            callback({ code: grpc.status.INTERNAL, message: String(err) });
+        }
+    },
 
+    async getBook(call: any, callback: grpc.sendUnaryData<any>) {
+        try {
+            const id = Number(call.request.id);
+            const book = await Book.findByPk(id);
 
-        },
-        async GetBook(call: any, callback: grpc.sendUnaryData<any>) {
-            const { id } = call.request;
-            const book = await bookRepo.findOneBy({ id: Number(id) });
-            if (!book) return callback({ code: grpc.status.NOT_FOUND, message: "Not found" } as any);
-            callback(null, book);
-        },
-        async UpdateBook(call: any, callback: grpc.sendUnaryData<any>) {
-            const { id, title, author, isbn, publishedYear, summary } = call.request;
-            const book = await bookRepo.findOneBy({ id: Number(id) });
-            if (!book) return callback({ code: grpc.status.NOT_FOUND, message: "Not found" } as any);
-            book.title = title ?? book.title;
-            book.author = author ?? book.author;
-            book.isbn = isbn ?? book.isbn;
-            book.publishedYear = publishedYear ?? book.publishedYear;
-            book.summary = summary ?? book.summary;
-            const saved = await bookRepo.save(book);
-            callback(null, saved);
+            if (!book)
+                return callback({ code: grpc.status.NOT_FOUND, message: "Book not found" }, null);
 
-        },
+            const b = book.toJSON();
+            callback(null, {
+                id: b.id.toString(),
+                title: b.title,
+                author: b.author,
+                isbn: b.isbn,
+                publishedYear: b.publishedYear,
+                summary: b.summary,
+            });
+        } catch (err) {
+            console.error("GET ERROR:", err);
+            callback({ code: grpc.status.INTERNAL, message: String(err) });
+        }
+    },
 
-        async DeleteBook(call: any, callback: grpc.sendUnaryData<any>) {
-            const { id } = call.request;
-            await bookRepo.delete(Number(id));
-            callback(null, {}); // google.protobuf.Empty 
-        },
-        async ListBooks(call: any, callback: grpc.sendUnaryData<any>) {
+    async updateBook(call: any, callback: grpc.sendUnaryData<any>) {
+        try {
+            const id = Number(call.request.id);
+            const { title, author, isbn, publishedYear, summary } = call.request;
+            const book: any = await Book.findByPk(id);
+
+            if (!book)
+                return callback({ code: grpc.status.NOT_FOUND, message: "Book not found" }, null);
+
+            await book.update({
+                title: title ?? book.title,
+                author: author ?? book.author,
+                isbn: isbn ?? book.isbn,
+                publishedYear: publishedYear ?? book.publishedYear,
+                summary: summary ?? book.summary,
+            });
+
+            const b = book.toJSON();
+            callback(null, {
+                id: b.id.toString(),
+                title: b.title,
+                author: b.author,
+                isbn: b.isbn,
+                publishedYear: b.publishedYear,
+                summary: b.summary,
+            });
+        } catch (err) {
+            console.error("UPDATE ERROR:", err);
+            callback({ code: grpc.status.INTERNAL, message: String(err) });
+        }
+    },
+
+    async deleteBook(call: any, callback: grpc.sendUnaryData<any>) {
+        try {
+            const id = Number(call.request.id);
+            await Book.destroy({ where: { id } });
+            callback(null, {}); // google.protobuf.Empty
+        } catch (err) {
+            console.error("DELETE ERROR:", err);
+            callback({ code: grpc.status.INTERNAL, message: String(err) });
+        }
+    },
+
+    async listBooks(call: any, callback: grpc.sendUnaryData<any>) {
+        try {
             const page = call.request.page || 1;
             const pageSize = call.request.pageSize || 10;
-            const [items, total] = await bookRepo.findAndCount({
-                skip: (page - 1) * pageSize,
-                take: pageSize,
 
+            const { rows, count } = await Book.findAndCountAll({
+                limit: pageSize,
+                offset: (page - 1) * pageSize,
             });
-            callback(null, { books: items, total });
 
-        },
-    };
-    server.addService(libraryPackage.LibraryService.service, handler);
+            callback(null, {
+                books: rows.map(b => ({
+                    id: b.id.toString(), 
+                    title: b.title,
+                    author: b.author,
+                    isbn: b.isbn,
+                    publishedYear: b.publishedYear,
+                    summary: b.summary,
+                })),
+                total: count,
+            });
+        } catch (err) {
+            console.error("LIST ERROR:", err);
+            callback({ code: grpc.status.INTERNAL, message: String(err) });
+        }
+    },
+};
+
+// START SERVER
+const startServer = async () => {
+    await connectDB();
+    await sequelize.sync({ alter: true });
+    console.log("Sequelize models synced with MySQL!");
+
+    const server = new grpc.Server();
+    server.addService(libraryPackage.LibraryServices.service, handler);
+
     const port = process.env.GRPC_PORT || "50051";
     server.bindAsync(`0.0.0.0:${port}`, grpc.ServerCredentials.createInsecure(), () => {
         server.start();
-        console.log(`grpc server started on {$port}`);
-
+        console.log(`gRPC Server running on port ${port}`);
     });
-}
+};
 
-main().catch((e) => {
-    console.error(e);
-    process.exit(1);
-});
-
-
+startServer();

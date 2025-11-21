@@ -2,6 +2,7 @@ import express from "express";
 import bodyParser from "body-parser";
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
+
 import path from "path";
 
 // Absolute path to shared proto file
@@ -26,7 +27,7 @@ const app = express();
 app.use(bodyParser.json());
 
 // Create a book
-app.post("/books", (req, res) => {
+app.post("/books", (req: any, res: any) => {
     client.CreateBook(req.body, (err: any, response: any) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(response);
@@ -34,7 +35,7 @@ app.post("/books", (req, res) => {
 });
 
 // Get a book by ID
-app.get("/books/:id", (req, res) => {
+app.get("/books/:id", (req: any, res: any) => {
     client.GetBook({ id: Number(req.params.id) }, (err: any, response: any) => {
         if (err) {
             const status = err.code === grpc.status.NOT_FOUND ? 404 : 500;
@@ -45,7 +46,7 @@ app.get("/books/:id", (req, res) => {
 });
 
 // Update a book by ID
-app.put("/books/:id", (req, res) => {
+app.put("/books/:id", (req: any, res: any) => {
     const payload = { id: Number(req.params.id), ...req.body };
     client.UpdateBook(payload, (err: any, response: any) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -54,7 +55,7 @@ app.put("/books/:id", (req, res) => {
 });
 
 // Delete a book by ID
-app.delete("/books/:id", (req, res) => {
+app.delete("/books/:id", (req: any, res: any) => {
     client.DeleteBook({ id: Number(req.params.id) }, (err: any) => {
         if (err) return res.status(500).json({ error: err.message });
         res.status(204).send();
@@ -62,7 +63,7 @@ app.delete("/books/:id", (req, res) => {
 });
 
 // List books with pagination
-app.get("/books", (req, res) => {
+app.get("/books", (req: any, res: any) => {
     const page = Number(req.query.page) || 1;
     const pageSize = Number(req.query.pageSize) || 10;
     client.ListBooks({ page, pageSize }, (err: any, response: any) => {
