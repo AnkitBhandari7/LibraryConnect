@@ -1,17 +1,22 @@
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import path from "path";
-import { connectDB, sequelize } from "./db";
+import { connectDB, sequelize } from "./config/db";
 import { Book } from "./models/Book";
 import { LibraryServiceDefinition } from "./server";
+import authController from "./controllers/auth.controller";
+import BookController from "./controllers/book.controller";
+import {AuthMiddleware} from "./middlewares/auth.middleware";
+
 
 
 // Correct path to proto and include google-proto-files for Empty type
-const PROTO_PATH = path.join(__dirname, "proto", "library.proto");
+const PROTO_PATH = path.join(__dirname, "../../proto/library.proto");
+
 
 const packageDef = protoLoader.loadSync(PROTO_PATH, {
-    keepCase: true, 
-    longs: String, 
+    keepCase: true,
+    longs: String,
     enums: String,
     defaults: true,
     oneofs: true,
@@ -38,7 +43,7 @@ const handler = {
             });
 
             callback(null, {
-                id: saved.id.toString(), 
+                id: saved.id.toString(),
                 title: saved.title,
                 author: saved.author,
                 isbn: saved.isbn,
@@ -129,7 +134,7 @@ const handler = {
 
             callback(null, {
                 books: rows.map(b => ({
-                    id: b.id.toString(), 
+                    id: b.id.toString(),
                     title: b.title,
                     author: b.author,
                     isbn: b.isbn,
@@ -145,6 +150,31 @@ const handler = {
     },
 };
 
+//grpcServer.addService(libraryProto.LibraryService.service, {
+  //  Login: authController.login,
+    //Register: authController.register,
+    // Auth API (No Middleware)
+    //Login: AuthController.login,
+    //Register: AuthController.register,
+
+    // Protected Book APIs
+    //CreateBook: (call, callback) =>
+      //  AuthMiddleware(call, callback, () => BookController.create(call, callback)),
+
+    //GetBook: (call, callback) =>
+      //  AuthMiddleware(call, callback, () => BookController.get(call, callback)),
+
+    //UpdateBook: (call, callback) =>
+      //  AuthMiddleware(call, callback, () => BookController.update(call, callback)),
+
+    //DeleteBook: (call, callback) =>
+      //  AuthMiddleware(call, callback, () => BookController.delete(call, callback)),
+
+    //ListBooks: (call, callback) =>
+      //  AuthMiddleware(call, callback, () => BookController.list(call, callback)),
+//});
+
+
 // START SERVER
 const startServer = async () => {
     await connectDB();
@@ -152,7 +182,29 @@ const startServer = async () => {
     console.log("Sequelize models synced with MySQL!");
 
     const server = new grpc.Server();
-    server.addService(libraryPackage.LibraryServices.service, handler);
+    server.addService(libraryPackage.LibraryServices.service, {
+        handler,
+         Login: authController.login,
+        Register: authController.register,
+
+        // Book APIs WITH Middleware
+        CreateBook: (call: any, callback: any) =>
+            AuthMiddleware(call, callback, () => BookController.create(call, callback)),
+
+        GetBook: (call: any, callback: any) =>
+            AuthMiddleware(call, callback, () => BookController.get(call, callback)),
+
+        UpdateBook: (call: any, callback: any) =>
+            AuthMiddleware(call, callback, () => BookController.update(call, callback)),
+
+        DeleteBook: (call: any, callback: any) =>
+            AuthMiddleware(call, callback, () => BookController.delete(call, callback)),
+
+        ListBooks: (call: any, callback: any) =>
+            AuthMiddleware(call, callback, () => BookController.list(call, callback)),
+        
+        
+});
 
     const port = process.env.GRPC_PORT || "50051";
     server.bindAsync(`0.0.0.0:${port}`, grpc.ServerCredentials.createInsecure(), () => {

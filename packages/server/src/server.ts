@@ -2,7 +2,8 @@
 import {
     LibraryServicesService,
     LibraryServicesServer,
-} from "./proto/library";
+} from "../../proto/library";
+
 
 
 export type ILibraryService = LibraryServicesServer;

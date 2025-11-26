@@ -1,20 +1,48 @@
 syntax = "proto3";
 
 package library;
-option go_package = "librarypb";
 
+// Import Google's Empty type
 import "google/protobuf/empty.proto";
 
-// gRPC service definition
+
+// gRPC Service Definition
+
 service LibraryServices {
-    rpc CreateBook(CreateBookRequest) returns (Book) {}
-    rpc GetBook(GetBookRequest) returns (Book) {}
-    rpc UpdateBook(UpdateBookRequest) returns (Book) {}
-    rpc DeleteBook(DeleteBookRequest) returns (google.protobuf.Empty) {}
-    rpc ListBooks(ListBookRequest) returns (ListBookResponse) {}
+    rpc Login (LoginRequest) returns (LoginResponse);
+    rpc Register (RegisterRequest) returns (RegisterResponse);
+    rpc CreateBook (CreateBookRequest) returns (Book);
+    rpc GetBook (GetBookRequest) returns (Book);
+    rpc UpdateBook (UpdateBookRequest) returns (Book);
+    rpc DeleteBook (DeleteBookRequest) returns (google.protobuf.Empty);
+    rpc ListBooks (ListBookRequest) returns (ListBookResponse);
 }
 
-// Define the Book message
+// authentication message
+message LoginRequest {
+    string email= 1;
+    string password= 2;
+
+}
+
+message LoginResponse{
+   string token= 1;
+
+}
+message RegisterRequest{
+    string username= 1;
+    string email= 2;
+    string password= 3;
+}
+
+message RegisterResponse{
+    string message= 1;
+    
+}
+
+
+// Book Message
+
 message Book {
     int64 id = 1;
     string title = 2;
@@ -24,9 +52,10 @@ message Book {
     string summary = 6;
 }
 
-// Request messages
-message CreateBookRequest {
 
+// Create Request
+
+message CreateBookRequest {
     string title = 1;
     string author = 2;
     string isbn = 3;
@@ -34,9 +63,15 @@ message CreateBookRequest {
     string summary = 5;
 }
 
+
+// Get Request
+
 message GetBookRequest {
     int64 id = 1;
 }
+
+
+// Update Request
 
 message UpdateBookRequest {
     int64 id = 1;
@@ -47,11 +82,16 @@ message UpdateBookRequest {
     string summary = 6;
 }
 
+
+// Delete Request
+
 message DeleteBookRequest {
     int64 id = 1;
 }
 
-// Pagination and list response
+
+// List Request + Response
+
 message ListBookRequest {
     int32 page = 1;
     int32 pageSize = 2;
